@@ -187,13 +187,13 @@ func (d *Data) ConvertToJson(orderID int) ([]byte, string) {
 	   <soap:Header>
 		  <tem:AuthHeader>
 			 <!--Optional:-->
-			 <tem:login>Luis1937</tem:login>
+			 <tem:login>800078522</tem:login>
 			 <!--Optional:-->
-			 <tem:pwd>MZR0zNqnI/KplFlYXiFk7m8/G/Iqxb3O</tem:pwd>
+			 <tem:pwd>Tb8Hb+NLWsc=</tem:pwd>
 			 <!--Optional:-->
-			 <tem:Id_CodFacturacion>SER408</tem:Id_CodFacturacion>
+			 <tem:Id_CodFacturacion>SER2799</tem:Id_CodFacturacion>
 			 <!--Optional:-->
-			 <tem:Nombre_Cargue>AJA_GROUP</tem:Nombre_Cargue>
+			 <tem:Nombre_Cargue>ROMULO</tem:Nombre_Cargue>
 		  </tem:AuthHeader>
 	   </soap:Header>
 	   <soap:Body>
@@ -287,14 +287,13 @@ func (d *Data) Prueba(object *ShipmentObject, orderID int) (string, error) {
 		object.Ideproducto = idProducto
 		object.DesFormaPago = 2
 		object.DesMedioTransporte = medioTransporte
-		object.NumPesoTotal = peso
 		object.NumValorDeclaradoTotal = float32(valorDeclarado)
 		object.DesTipoDuracionTrayecto = tipoDuracionTrayecto
 		i, err := strconv.Atoi(telefono)
 		if err == nil {
 			object.DesTelefono = i
 		}
-		object.DesCiudad = "73449000"
+		object.DesCiudad = "76001000"
 		object.DesDireccion = direccion
 		object.NomContacto = nombre + " " + apellido
 		object.DesDiceContener = "CALZADO"
@@ -302,15 +301,15 @@ func (d *Data) Prueba(object *ShipmentObject, orderID int) (string, error) {
 		object.NumAlto = alto
 		object.NumAncho = ancho
 		object.NumLargo = largo
-		object.NumAlto = alto
-		object.DesDepartamentoDestino = "47268000"
-		object.NomUnidadEmpaque = "GENERICO"
+		object.NumPesoTotal = peso
+		object.DesDepartamentoDestino = "76001000"
+		object.NomUnidadEmpaque = unidadEmpaque
 		object.DesUnidadLongitud = unidadLongitud
 		object.DesUnidadPeso = unidadPeso
 		object.IdeNumIdentificDest = cedula
 		object.DesCorreoElectronico = correoPersona
 		object.NumCelular = i
-		object.IdeCodFacturacion = "SER408"
+		object.IdeCodFacturacion = "SER2799"
 		object.NomTipoTrayecto = 1
 		object.GenCajaporte = false
 		object.GenSobreporte = false

@@ -28,7 +28,7 @@ func (a *ApiConsume) enviarInfo(pedido int, wg *sync.WaitGroup) {
 	a.mu.Lock()
 	a.httpMethod = "POST"
 	payload, correo := a.data.ConvertToJson(pedido)
-	a.url = "http://190.131.194.159:8059/GeneracionGuias.asmx"
+	a.url = "http://web.servientrega.com:8081/GeneracionGuias.asmx"
 	req, err := http.NewRequest(a.httpMethod, a.url, bytes.NewReader(payload))
 	if err != nil {
 		log.Fatal("Error on creating request object. ", err.Error())
@@ -61,7 +61,7 @@ func enviarCorreo(correo string, guia int) {
 	fmt.Println(correo)
 	from := "diegodiazh1994@gmail.com"
 	pass := "cristiano1994"
-	to := correo
+	to := "diegodiazh1994@gmail.com"
 	v := strconv.Itoa(guia)
 	msg := "From: " + from + "\n" +
 		"To: " + to + "\n" +
