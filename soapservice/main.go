@@ -8,22 +8,24 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/smtp"
 	connect "servientrega/connection"
 	requestStruct "servientrega/requestStruct"
 	responseRequest "servientrega/responseRequest"
 	"strconv"
 	"sync"
+
+	gomail "gopkg.in/gomail.v2"
 )
 
-type ApiConsume struct {
+//APIConsume func
+type APIConsume struct {
 	mu         sync.Mutex
 	data       requestStruct.Data
 	httpMethod string
 	url        string
 }
 
-func (a *ApiConsume) enviarInfo(pedido int, wg *sync.WaitGroup) {
+func (a *APIConsume) enviarInfo(pedido int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	a.mu.Lock()
 	a.httpMethod = "POST"
@@ -58,28 +60,44 @@ func (a *ApiConsume) enviarInfo(pedido int, wg *sync.WaitGroup) {
 	a.mu.Unlock()
 }
 func enviarCorreo(correo string, guia int) {
-	fmt.Println(correo)
-	from := "diegodiazh1994@gmail.com"
-	pass := "cristiano1994"
-	to := "diegodiazh1994@gmail.com"
+	from := "noreply-ventas@calzadoromulo.com.co"
+	pass := "Temporal.2021@"
+	to := correo
 	v := strconv.Itoa(guia)
-	msg := "From: " + from + "\n" +
-		"To: " + to + "\n" +
-		"Subject: Pedido generado Rómulo\n\n" +
-		"Su número de guía es: " + v + "\n\n" +
-		"Muchas gracias por su compra."
 
-	err := smtp.SendMail("smtp.gmail.com:587",
-		smtp.PlainAuth("", from, pass, "smtp.gmail.com"),
-		from, []string{to}, []byte(msg))
+	m := gomail.NewMessage()
+	m.SetHeader("From", from)
+	m.SetHeader("To", to)
+	m.SetHeader("Subject", "Número de Guía Rómulo")
+	m.SetBody("text/html", fmt.Sprintf(`<!DOCTYPE html>
+	<style>
+		body {
+		   font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif; 
+		   font-weight: 300;
+		}
+	</style>
+	<html>
+		<body>
+		<p>Confirmamos su compra con el siguiente n&uacute;mero de gu&iacute;a:</p>
+		<p><span style="color: #ff0000;"><strong>%s</strong></span></p>
+		<p>!Gracias por ser parte de la familia de Calzado Romulo!</p>
+		<p><a href="https://www.servientrega.com/wps/portal/Colombia/transacciones-personas/rastreo-envios"><img src="https://drive.google.com/uc?export=download&amp;id=1e6Z2HfMa3QyDnAdxg48irwdOGoAWfAjQ" alt="guia" width="756" height="510" /></a></p>
+		<p>Quedo atenta,</p>
+		<p><img src="https://drive.google.com/uc?export=download&amp;id=1K7BZl2lR6YCeGuCIfB9SV4kdSwqsxQS2" alt="firma" width="589" height="474" /></p>
+		</body>
+	</html>`, v))
 
-	if err != nil {
-		log.Printf("smtp error: %s", err)
-		return
+	// Send the email to Bob
+	d := gomail.NewPlainDialer("smtpout.secureserver.net", 80, from, pass)
+	if err := d.DialAndSend(m); err != nil {
+		log.Fatal(err.Error())
+		panic(err)
 	}
 }
+
+//ObtenerPedidosPendietes metodo para tener los pedidos pendientes por enviar
 func ObtenerPedidosPendietes() {
-	var wbEnvio ApiConsume
+	var wbEnvio APIConsume
 	var wg sync.WaitGroup
 	conn := new(connect.Connection)
 	listaPendientes := []int{}
@@ -113,10 +131,11 @@ func ObtenerPedidosPendietes() {
 			fmt.Println("desconocido")
 		}
 	}
-	wg.Add(len(listaPendientes))
-	for _, v := range listaPendientes {
-		go wbEnvio.enviarInfo(v, &wg)
-	}
+	//wg.Add(len(listaPendientes))
+	wg.Add(1)
+	//or _, v := range listaPendientes {
+	go wbEnvio.enviarInfo(21237, &wg)
+	//}
 	wg.Wait()
 }
 
