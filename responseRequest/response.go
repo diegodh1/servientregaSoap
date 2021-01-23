@@ -1,7 +1,8 @@
-package responseRequest
+package responserequest
 
 import "encoding/xml"
 
+//CargueMasivoExternoResponse struct
 type CargueMasivoExternoResponse struct {
 	XMLName xml.Name
 	Body    struct {
@@ -11,6 +12,8 @@ type CargueMasivoExternoResponse struct {
 		Guia                      string `xml:"CargueMasivoExternoResponse>arrayGuias>string" json:"Guia"`
 	}
 }
+
+//Envio struct
 type Envio struct {
 	XMLName                 xml.Name `xml:"EnviosExterno" json:"-"`
 	NumGuia                 int      `xml:"Num_Guia" json:"Num_Guia"`

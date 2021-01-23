@@ -9,8 +9,8 @@ import (
 	"log"
 	"net/http"
 	connect "servientrega/connection"
-	requestStruct "servientrega/requestStruct"
-	responseRequest "servientrega/responseRequest"
+	requestStruct "servientrega/requeststruct"
+	responseRequest "servientrega/responserequest"
 	"strconv"
 	"sync"
 
@@ -29,7 +29,7 @@ func (a *APIConsume) enviarInfo(pedido int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	a.mu.Lock()
 	a.httpMethod = "POST"
-	payload, correo := a.data.ConvertToJson(pedido)
+	payload, correo := a.data.ConvertToJSON(pedido)
 	a.url = "http://web.servientrega.com:8081/GeneracionGuias.asmx"
 	req, err := http.NewRequest(a.httpMethod, a.url, bytes.NewReader(payload))
 	if err != nil {
@@ -82,17 +82,12 @@ func enviarCorreo(correo string, guia int) {
 		<p><span style="color: #ff0000;"><strong>%s</strong></span></p>
 		<p>!Gracias por ser parte de la familia de Calzado Romulo!</p>
 		<p><a href="https://www.servientrega.com/wps/portal/Colombia/transacciones-personas/rastreo-envios"><img src="https://drive.google.com/uc?export=download&amp;id=1e6Z2HfMa3QyDnAdxg48irwdOGoAWfAjQ" alt="guia" width="756" height="510" /></a></p>
-		<p>Quedo atenta,</p>
-		<p><img src="https://drive.google.com/uc?export=download&amp;id=1K7BZl2lR6YCeGuCIfB9SV4kdSwqsxQS2" alt="firma" width="589" height="474" /></p>
 		</body>
 	</html>`, v))
 
 	// Send the email to Bob
 	d := gomail.NewPlainDialer("smtpout.secureserver.net", 80, from, pass)
-	if err := d.DialAndSend(m); err != nil {
-		log.Fatal(err.Error())
-		panic(err)
-	}
+	d.DialAndSend(m)
 }
 
 //ObtenerPedidosPendietes metodo para tener los pedidos pendientes por enviar
@@ -131,11 +126,10 @@ func ObtenerPedidosPendietes() {
 			fmt.Println("desconocido")
 		}
 	}
-	//wg.Add(len(listaPendientes))
-	wg.Add(1)
-	//or _, v := range listaPendientes {
-	go wbEnvio.enviarInfo(21237, &wg)
-	//}
+	wg.Add(len(listaPendientes))
+	for _, v := range listaPendientes {
+		go wbEnvio.enviarInfo(v, &wg)
+	}
 	wg.Wait()
 }
 

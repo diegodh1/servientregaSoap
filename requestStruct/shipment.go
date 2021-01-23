@@ -1,21 +1,28 @@
-package requestStruct
+package requeststruct
 
 import (
 	"database/sql"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"regexp"
 	connect "servientrega/connection"
 	"strconv"
+	"strings"
 )
 
+//Data struct
 type Data struct {
 	ShipmentObject *Shipment
 }
+
+//Shipment struct
 type Shipment struct {
 	XMLName xml.Name        `xml:"tem:objEnvios" json:"-"`
 	Object  *ShipmentObject `xml:"tem:EnviosExterno" json:"Object"`
 }
+
+//ShipmentObject struct
 type ShipmentObject struct {
 	XMLName                     xml.Name `xml:"tem:EnviosExterno" json:"-"`
 	NumGuia                     int      `xml:"tem:Num_Guia" json:"NumGuia"`
@@ -78,7 +85,8 @@ type ShipmentObject struct {
 	NomRemitenteCanal           string   `xml:"tem:Nom_RemitenteCanal" json:"Nom_RemitenteCanal"`
 }
 
-func (d *Data) ConvertToJson(orderID int) ([]byte, string) {
+//ConvertToJSON func
+func (d *Data) ConvertToJSON(orderID int) ([]byte, string) {
 	temp := ShipmentObject{}
 	correo, _ := d.Prueba(&temp, orderID)
 	temp2 := Shipment{Object: &temp}
@@ -224,6 +232,7 @@ func (d *Data) ConvertToJson(orderID int) ([]byte, string) {
 
 }
 
+//Prueba func
 func (d *Data) Prueba(object *ShipmentObject, orderID int) (string, error) {
 	conn := new(connect.Connection)
 	var correoPersona string
@@ -293,7 +302,7 @@ func (d *Data) Prueba(object *ShipmentObject, orderID int) (string, error) {
 		if err == nil {
 			object.DesTelefono = i
 		}
-		object.DesCiudad = "76001000"
+		object.DesCiudad = ciudad
 		object.DesDireccion = direccion
 		object.NomContacto = nombre + " " + apellido
 		object.DesDiceContener = "CALZADO"
@@ -302,7 +311,7 @@ func (d *Data) Prueba(object *ShipmentObject, orderID int) (string, error) {
 		object.NumAncho = ancho
 		object.NumLargo = largo
 		object.NumPesoTotal = peso
-		object.DesDepartamentoDestino = "76001000"
+		object.DesDepartamentoDestino = departamentoDestino
 		object.NomUnidadEmpaque = unidadEmpaque
 		object.DesUnidadLongitud = unidadLongitud
 		object.DesUnidadPeso = unidadPeso
@@ -318,6 +327,29 @@ func (d *Data) Prueba(object *ShipmentObject, orderID int) (string, error) {
 		object.IdeManifiesto = "00000000-0000-0000-0000-000000000000"
 		object.FecTiempoEntrega = 1
 
+	}
+	//GET DIAN CODE
+	tsql = fmt.Sprintf(`SELECT dane_codigo_dpto, dane_codigo FROM Dane_Ciu WHERE dane_ciudad = @daneCiudad`)
+	rows, err = db.QueryContext(ctx, tsql, sql.Named("daneCiudad", strings.ToUpper(object.DesCiudad)))
+	if err != nil {
+		fmt.Println(err.Error())
+		return "", err
+	}
+	defer rows.Close()
+	entro := false
+	for rows.Next() {
+		entro = true
+		var codDepartamento, codCiudad string
+		err := rows.Scan(&codDepartamento, &codCiudad)
+		if err != nil {
+			return "", err
+		}
+		object.DesCiudad = codCiudad
+		object.DesDepartamentoDestino = codDepartamento
+
+	}
+	if !entro {
+		return "", errors.New("No hay codigo dane para esta ciudad")
 	}
 	return correoPersona, nil
 }
