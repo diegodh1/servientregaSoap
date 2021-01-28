@@ -2,39 +2,36 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"database/sql"
 	"encoding/xml"
 	"fmt"
 	"log"
 	"net/http"
-	connect "servientrega/connection"
+	"servientrega/connection"
 	requestStruct "servientrega/requeststruct"
 	responseRequest "servientrega/responserequest"
 	"strconv"
-	"sync"
 
 	gomail "gopkg.in/gomail.v2"
+	"gorm.io/gorm"
 )
 
 //APIConsume func
 type APIConsume struct {
-	mu         sync.Mutex
 	data       requestStruct.Data
 	httpMethod string
 	url        string
 }
 
-func (a *APIConsume) enviarInfo(pedido int, wg *sync.WaitGroup) {
-	defer wg.Done()
-	a.mu.Lock()
+func (a *APIConsume) enviarInfo(pedido int, despacho *requestStruct.DespachoServ, db *gorm.DB) {
 	a.httpMethod = "POST"
-	payload, correo := a.data.ConvertToJSON(pedido)
+	payload, correo := a.data.ConvertToJSON(pedido, despacho)
 	a.url = "http://web.servientrega.com:8081/GeneracionGuias.asmx"
 	req, err := http.NewRequest(a.httpMethod, a.url, bytes.NewReader(payload))
 	if err != nil {
 		log.Fatal("Error on creating request object. ", err.Error())
-		insertarError(-1, err)
 	}
 	req.Header.Set("Content-type", "text/xml")
 	client := &http.Client{
@@ -47,17 +44,15 @@ func (a *APIConsume) enviarInfo(pedido int, wg *sync.WaitGroup) {
 	res, err := client.Do(req)
 	if err != nil {
 		log.Fatal("Error on dispatching request. ", err.Error())
-		insertarError(-1, err)
 	}
 	response := new(responseRequest.CargueMasivoExternoResponse)
 	err = xml.NewDecoder(res.Body).Decode(response)
 	if err != nil {
 		log.Fatal("Error on unmarshaling xml. ", err.Error())
-		insertarError(-1, err)
 	}
-	insertarGuia(response.Body.EnvioObj.NumGuia, pedido)
+	fmt.Println(response.Body.EnvioObj.NumGuia)
+	insertarGuia(response.Body.EnvioObj.NumGuia, pedido, db)
 	enviarCorreo(correo, response.Body.EnvioObj.NumGuia)
-	a.mu.Unlock()
 }
 func enviarCorreo(correo string, guia int) {
 	from := "noreply-ventas@calzadoromulo.com.co"
@@ -91,92 +86,40 @@ func enviarCorreo(correo string, guia int) {
 }
 
 //ObtenerPedidosPendietes metodo para tener los pedidos pendientes por enviar
-func ObtenerPedidosPendietes() {
+func ObtenerPedidosPendietes(db *gorm.DB) {
 	var wbEnvio APIConsume
-	var wg sync.WaitGroup
-	conn := new(connect.Connection)
-	listaPendientes := []int{}
-	_, err := conn.Connect()
-	defer conn.Disconnect()
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	ctx := conn.GetContext()
-	db := conn.GetDBConnection()
-	// Check if database is alive.
-	err = db.PingContext(ctx)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	tsql := fmt.Sprintf("SELECT order_id FROM VistaDespachoServ")
-	rows, err := db.QueryContext(ctx, tsql)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id int
-		err := rows.Scan(&id)
-		switch {
-		case err == nil:
-			listaPendientes = append(listaPendientes, id)
-		case err != nil:
-			fmt.Println(err.Error())
-		default:
-			fmt.Println("desconocido")
-		}
-	}
-	wg.Add(len(listaPendientes))
+	listaPendientes := []requestStruct.DespachoServ{}
+	db.Find(&listaPendientes)
 	for _, v := range listaPendientes {
-		go wbEnvio.enviarInfo(v, &wg)
+		wbEnvio.enviarInfo(v.OrderID, &v, db)
 	}
-	wg.Wait()
 }
 
-func insertarGuia(guia int, order int) (int64, error) {
-	conn := new(connect.Connection)
-	_, err := conn.Connect()
-	defer conn.Disconnect()
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	ctx := conn.GetContext()
-	db := conn.GetDBConnection()
-	// Check if database is alive.
-	err = db.PingContext(ctx)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	tsql := fmt.Sprintf("INSERT INTO RegistroGuia(guia_nro,order_id) VALUES(@Guia,@Order)")
-	result, err := db.ExecContext(ctx, tsql, sql.Named("Guia", guia), sql.Named("Order", order))
-	if err != nil {
-		return -1, err
-	}
-
-	return result.RowsAffected()
+//RegistroGuia struct
+type RegistroGuia struct {
+	GuiaNro int `gorm:"type:int;"`
+	OrderID int `gorm:"type:int;"`
 }
-func insertarError(order int, errProduce error) {
-	conn := new(connect.Connection)
-	_, err := conn.Connect()
-	defer conn.Disconnect()
-	if err != nil {
-		fmt.Println(err.Error())
+
+func insertarGuia(guia int, order int, db *gorm.DB) {
+	data := RegistroGuia{
+		GuiaNro: guia,
+		OrderID: order,
 	}
-	ctx := conn.GetContext()
-	db := conn.GetDBConnection()
-	// Check if database is alive.
-	err = db.PingContext(ctx)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
+	db.Create(&data)
+	db.Exec("UPDATE despacho SET despacho_estado = ? WHERE order_id = ?", true, order)
+}
+func insertarError(order int, errProduce error, db *sql.DB, ctx *context.Context) {
 	tsql := fmt.Sprintf("INSERT INTO RegistroError(order_id,error) VALUES(@Order,@Error)")
-	result, err := db.ExecContext(ctx, tsql, sql.Named("Order", order), sql.Named("Error", errProduce.Error()))
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	fmt.Println(result)
+	db.ExecContext(*ctx, tsql, sql.Named("Order", order), sql.Named("Error", errProduce.Error()))
 }
 
 func main() {
-	ObtenerPedidosPendietes()
+	var connection = new(connection.Config)
+	connection.Init()
+	db, err := connection.Connect()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	ObtenerPedidosPendietes(db)
 }

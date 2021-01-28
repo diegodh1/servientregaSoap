@@ -1,15 +1,41 @@
 package requeststruct
 
 import (
-	"database/sql"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"regexp"
-	connect "servientrega/connection"
 	"strconv"
-	"strings"
 )
+
+//DespachoServ struct
+type DespachoServ struct {
+	OrderID            int
+	NumItemsSold       int
+	NetTotal           float32
+	BillingCedula      string
+	BillingFirstName   string
+	BillingLastName    string
+	BillingCity        string
+	BillingState       string
+	BillingPhone       string
+	BillingEmail       string
+	BillingAddress     string
+	IDProducto         int
+	DuracionTrayecto   int
+	MedioTransporte    int
+	TipoTrayecto       int
+	PaisDestino        int
+	PaisOrigen         int
+	DepartamentoOrigen string
+	UnidadEmpaque      string
+	Largo              int
+	Ancho              int
+	Alto               int
+	Peso               int
+	ValorDeclarado     int
+	UnidadLongitud     string
+	UnidadPeso         string
+}
 
 //Data struct
 type Data struct {
@@ -86,9 +112,9 @@ type ShipmentObject struct {
 }
 
 //ConvertToJSON func
-func (d *Data) ConvertToJSON(orderID int) ([]byte, string) {
+func (d *Data) ConvertToJSON(orderID int, despacho *DespachoServ) ([]byte, string) {
 	temp := ShipmentObject{}
-	correo, _ := d.Prueba(&temp, orderID)
+	correo, _ := d.Prueba(&temp, despacho)
 	temp2 := Shipment{Object: &temp}
 
 	rawXMLData := `<tem:objEnvios>
@@ -227,129 +253,49 @@ func (d *Data) ConvertToJSON(orderID int) ([]byte, string) {
 	regex := regexp.MustCompile("\\s+")
 	rawXMLHeader = regex.ReplaceAllString(rawXMLHeader, " ")
 	rawXMLFooter = regex.ReplaceAllString(rawXMLFooter, " ")
-	fmt.Println(rawXMLHeader + string(xmlData) + rawXMLFooter)
 	return []byte(rawXMLHeader + string(xmlData) + rawXMLFooter), correo
 
 }
 
 //Prueba func
-func (d *Data) Prueba(object *ShipmentObject, orderID int) (string, error) {
-	conn := new(connect.Connection)
-	var correoPersona string
-	_, err := conn.Connect()
-	defer conn.Disconnect()
-	if err != nil {
-		return "", err
+func (d *Data) Prueba(object *ShipmentObject, despacho *DespachoServ) (string, error) {
+	object.DocRelacionado = strconv.Itoa(despacho.OrderID)
+	object.NumPiezas = despacho.NumItemsSold
+	object.DesTipoTrayecto = despacho.TipoTrayecto
+	object.Ideproducto = despacho.IDProducto
+	object.DesFormaPago = 2
+	object.DesMedioTransporte = despacho.MedioTransporte
+	object.NumValorDeclaradoTotal = float32(despacho.ValorDeclarado)
+	object.DesTipoDuracionTrayecto = despacho.DuracionTrayecto
+	i, err := strconv.Atoi(despacho.BillingPhone)
+	if err == nil {
+		object.DesTelefono = i
 	}
-	ctx := conn.GetContext()
-	db := conn.GetDBConnection()
-	// Check if database is alive.
-	err = db.PingContext(ctx)
-	if err != nil {
-		return "", err
-	}
-	tsql := fmt.Sprintf(`SELECT order_id,
-	num_items_sold,
-	net_total,
-	billing_cedula,
-	billing_first_name,
-	billing_last_name,
-	billing_city,
-	billing_state,
-	billing_phone,
-	billing_email,
-	billing_address,
-	idProducto,
-	tipoDuracionTrayecto,
-	medioTransporte,
-	tipoTrayecto,
-	paisDestino,
-	paisOrigen,
-	departamentoOrigen,
-	unidadEmpaque,
-	largo,
-	ancho,
-	alto,
-	peso,
-	valorDeclarado,
-	unidadLongitud,
-	unidadPeso 
-	FROM VistaDespachoServ WHERE order_id = @orderID`)
-	rows, err := db.QueryContext(ctx, tsql, sql.Named("orderID", orderID))
-	if err != nil {
-		fmt.Println(err.Error())
-		return "", err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id, nroItems, totalVendido, cedula, idProducto, tipoDuracionTrayecto, medioTransporte, tipoTrayecto, paisOrigen, paisDestino, largo, ancho, alto, peso, valorDeclarado int
-		var nombre, apellido, ciudad, departamentoDestino, telefono, direccion, departamentoOrigen, unidadEmpaque, unidadLongitud, unidadPeso string
-
-		// Get values from row.
-		err := rows.Scan(&id, &nroItems, &totalVendido, &cedula, &nombre, &apellido, &ciudad, &departamentoDestino, &telefono, &correoPersona, &direccion, &idProducto, &tipoDuracionTrayecto, &medioTransporte, &tipoTrayecto, &paisDestino, &paisOrigen, &departamentoOrigen, &unidadEmpaque, &largo, &ancho, &alto, &peso, &valorDeclarado, &unidadLongitud, &unidadPeso)
-		if err != nil {
-			return "", err
-		}
-		object.DocRelacionado = strconv.Itoa(id)
-		object.NumPiezas = nroItems
-		object.DesTipoTrayecto = tipoTrayecto
-		object.Ideproducto = idProducto
-		object.DesFormaPago = 2
-		object.DesMedioTransporte = medioTransporte
-		object.NumValorDeclaradoTotal = float32(valorDeclarado)
-		object.DesTipoDuracionTrayecto = tipoDuracionTrayecto
-		i, err := strconv.Atoi(telefono)
-		if err == nil {
-			object.DesTelefono = i
-		}
-		object.DesCiudad = ciudad
-		object.DesDireccion = direccion
-		object.NomContacto = nombre + " " + apellido
-		object.DesDiceContener = "CALZADO"
-		object.DesTipoGuia = 2
-		object.NumAlto = alto
-		object.NumAncho = ancho
-		object.NumLargo = largo
-		object.NumPesoTotal = peso
-		object.DesDepartamentoDestino = departamentoDestino
-		object.NomUnidadEmpaque = unidadEmpaque
-		object.DesUnidadLongitud = unidadLongitud
-		object.DesUnidadPeso = unidadPeso
-		object.IdeNumIdentificDest = cedula
-		object.DesCorreoElectronico = correoPersona
-		object.NumCelular = i
-		object.IdeCodFacturacion = "SER2799"
-		object.NomTipoTrayecto = 1
-		object.GenCajaporte = false
-		object.GenSobreporte = false
-		object.DesDiceContenerSobre = "?"
-		object.IdeDestinatarios = "00000000-0000-0000-0000-000000000000"
-		object.IdeManifiesto = "00000000-0000-0000-0000-000000000000"
-		object.FecTiempoEntrega = 1
-
-	}
+	object.DesCiudad = despacho.BillingCity
+	object.DesDireccion = despacho.BillingAddress
+	object.NomContacto = despacho.BillingFirstName + " " + despacho.BillingLastName
+	object.DesDiceContener = "CALZADO"
+	object.DesTipoGuia = 2
+	object.NumAlto = despacho.Alto
+	object.NumAncho = despacho.Ancho
+	object.NumLargo = despacho.Largo
+	object.NumPesoTotal = despacho.Peso
+	object.DesDepartamentoDestino = despacho.BillingState
+	object.NomUnidadEmpaque = despacho.UnidadEmpaque
+	object.DesUnidadLongitud = despacho.UnidadLongitud
+	object.DesUnidadPeso = despacho.UnidadPeso
+	v, _ := strconv.Atoi(despacho.BillingCedula)
+	object.IdeNumIdentificDest = v
+	object.DesCorreoElectronico = despacho.BillingEmail
+	object.NumCelular = i
+	object.IdeCodFacturacion = "SER2799"
+	object.NomTipoTrayecto = 1
+	object.GenCajaporte = false
+	object.GenSobreporte = false
+	object.DesDiceContenerSobre = "?"
+	object.IdeDestinatarios = "00000000-0000-0000-0000-000000000000"
+	object.IdeManifiesto = "00000000-0000-0000-0000-000000000000"
+	object.FecTiempoEntrega = 1
 	//GET DIAN CODE
-	tsql = fmt.Sprintf(`SELECT dane_codigo_dpto, dane_codigo FROM Dane_Ciu WHERE dane_ciudad = @daneCiudad`)
-	rows, err = db.QueryContext(ctx, tsql, sql.Named("daneCiudad", strings.ToUpper(object.DesCiudad)))
-	if err != nil {
-		fmt.Println(err.Error())
-		return "", err
-	}
-	defer rows.Close()
-	entro := false
-	for rows.Next() {
-		entro = true
-		var codDepartamento, codCiudad string
-		err := rows.Scan(&codDepartamento, &codCiudad)
-		if err != nil {
-			return "", err
-		}
-		object.DesCiudad = codCiudad
-		object.DesDepartamentoDestino = codDepartamento
-
-	}
-	if !entro {
-		return "", errors.New("No hay codigo dane para esta ciudad")
-	}
-	return correoPersona, nil
+	return despacho.BillingEmail, nil
 }
